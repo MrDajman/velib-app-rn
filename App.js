@@ -15,6 +15,7 @@ const Stack = createStackNavigator();
 export default function App() {
   async function getCurrentLocation() {
     let { status } = await Location.requestForegroundPermissionsAsync();
+    console.log(status);
     if (status !== "granted") {
       console.log("Permission to access location was denied");
       return;
@@ -30,7 +31,10 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="MainView">
+      <Stack.Navigator
+        initialRouteName="MainView"
+        screenOptions={{ headerShown: false }}
+      >
         <Stack.Screen name="MainView" component={MainView} />
         <Stack.Screen name="TrackView" component={TrackView} />
         <Stack.Screen name="FinalTracksView" component={FinalTracksView} />

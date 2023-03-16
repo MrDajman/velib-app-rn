@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, TouchableOpacity, Button } from "react-native";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import MapView, {
   Polyline,
   Circle,
@@ -15,6 +15,7 @@ import StatusBar from "../Components/StatusBar";
 import HomeMap from "../Components/HomeMap";
 
 const MainView = ({ navigation }) => {
+  const homeMapRef = useRef(null);
   console.log("rerendered");
 
   const [dataInfo, setDataInfo] = useState(null);
@@ -43,20 +44,6 @@ const MainView = ({ navigation }) => {
       .then((dataStatus) => setDataStatus(dataStatus["data"]["stations"]))
       .catch((error) => console.error(error));
 
-    // async function getCurrentLocation() {
-    //   let { status } = await Location.requestForegroundPermissionsAsync();
-    //   if (status !== "granted") {
-    //     console.log("Permission to access location was denied");
-    //     return;
-    //   }
-
-    //   let location = await Location.getCurrentPositionAsync({});
-    //   const { latitude, longitude } = location.coords;
-    //   console.log(latitude, longitude);
-    // }
-
-    // getCurrentLocation();
-
     return () => {
       console.log("Main unmounting");
     };
@@ -65,6 +52,7 @@ const MainView = ({ navigation }) => {
   return (
     <View>
       <HomeMap
+        mapRef={homeMapRef}
         dataInfo={dataInfo}
         dataStatus={dataStatus}
         setStationInfo={setStationInfo}
@@ -79,6 +67,7 @@ const MainView = ({ navigation }) => {
       />
 
       <StatusBar
+        mapRef={homeMapRef}
         dataStatus={dataStatus}
         stationInfo={stationInfo}
         setStart={setStart}

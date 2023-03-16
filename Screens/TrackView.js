@@ -1,7 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useIsFocused, useFocusEffect } from "@react-navigation/native";
+import MapView from "react-native-maps";
+import React, { useState, useEffect, useRef, useReducer } from "react";
 
 import StartEndMarkers from "../Components/StartEndMarkers";
 import TrackPolyline from "../Components/TrackPolyline";
@@ -9,13 +8,19 @@ import ChangeMarkers from "../Components/ChangeMarkers";
 import SelectiveStationsMarkers from "../Components/SelectiveStationsMarkers";
 
 import apiKeys from "../secretCodes.json";
+import LocationButton from "../Components/LocationButton";
 
 const TrackView = ({ navigation, route }) => {
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
   const { startPoint, endPoint, dataInfo, dataStatus } = route.params;
 
   const [trackInfo, setTrackInfo] = useState(null);
   const [countPoints, setCountPoints] = useState(0);
   const [chosenStations, setChosenStations] = useState([]);
+
+  const handleSetChosenStations = (newChosenStations) => {
+    setChosenStations(newChosenStations);
+  };
 
   const getTrack = () => {
     console.log("in get Track");
@@ -157,10 +162,36 @@ const TrackView = ({ navigation, route }) => {
       ? setCountPoints(0)
       : setCountPoints(countPoints + 1);
   };
+
+  const handleChangeViewButtons = (coord, viewNb) => {
+    const points = getAllInterestPoints(coord);
+    mapRef.current.animateToRegion(
+      {
+        latitude: points[viewNb].latitude,
+        longitude: points[viewNb].longitude,
+        latitudeDelta: 0.03,
+        longitudeDelta: 0.03,
+      },
+      1200
+    );
+  };
+
   const mapRef = useRef(null);
+
+  const getAllStationsChosen = () => {
+    // check if all stations picked
+    let stationsPicked = true;
+    for (let i = 0; i < chosenStations.length; i++) {
+      if (chosenStations[i] === "Undefined") {
+        stationsPicked = false;
+      }
+    }
+    return stationsPicked;
+  };
 
   const handleGoButton = () => {
     console.log("Pressed GOOO!");
+
     navigation.navigate("FinalTracksView", {
       chosenStations: chosenStations,
       dataInfo: dataInfo,
@@ -176,9 +207,10 @@ const TrackView = ({ navigation, route }) => {
         initialRegion={{
           latitude: (startPoint["lat"] + endPoint["lat"]) / 2,
           longitude: (startPoint["lon"] + endPoint["lon"]) / 2,
-          latitudeDelta: Math.abs(startPoint["lat"] - endPoint["lat"]) * 1.2,
-          longitudeDelta: Math.abs(startPoint["lon"] - endPoint["lon"]) * 1.2,
+          latitudeDelta: Math.abs(startPoint["lat"] - endPoint["lat"]) * 1.3,
+          longitudeDelta: Math.abs(startPoint["lon"] - endPoint["lon"]) * 1.3,
         }}
+        showsUserLocation={true}
       >
         <StartEndMarkers startPoint={startPoint} endPoint={endPoint} />
         <TrackPolyline trackInfo={trackInfo} />
@@ -187,109 +219,130 @@ const TrackView = ({ navigation, route }) => {
           getChangingPoints={getChangingPoints}
         />
         {trackInfo ? (
-          <View>
-            <SelectiveStationsMarkers
-              key="SelectiveStart"
-              dataInfo={dataInfo}
-              dataStatus={dataStatus}
-              point={{
-                latitude: startPoint["lat"],
-                longitude: startPoint["lon"],
-              }}
-              order={0}
-              setStationsFunc={setChosenStations}
-              chosenStations={chosenStations}
-            />
-            <SelectiveStationsMarkers
-              dataInfo={dataInfo}
-              key="SelectiveEnd"
-              dataStatus={dataStatus}
-              point={{
-                latitude: endPoint["lat"],
-                longitude: endPoint["lon"],
-              }}
-              order={getNbOfLegs()}
-              setStationsFunc={setChosenStations}
-              chosenStations={chosenStations}
-            />
-
-            {trackInfo
-              ? getChangingPoints(trackInfo["coordinates"]).map(
-                  (singleChangingPoint, index) => (
-                    <SelectiveStationsMarkers
-                      key={"SelectiveMid" + index}
-                      dataInfo={dataInfo}
-                      dataStatus={dataStatus}
-                      point={singleChangingPoint}
-                      order={index + 1}
-                      setStationsFunc={setChosenStations}
-                      chosenStations={chosenStations}
-                    />
-                  )
-                )
-              : console.log("Waiting to load the track")}
-          </View>
+          <SelectiveStationsMarkers
+            key="SelectiveStart"
+            dataInfo={dataInfo}
+            dataStatus={dataStatus}
+            point={{
+              latitude: startPoint["lat"],
+              longitude: startPoint["lon"],
+            }}
+            order={0}
+            setStationsFunc={handleSetChosenStations}
+            chosenStations={chosenStations}
+            forceUpdate={forceUpdate}
+          />
         ) : (
-          <View></View>
+          console.log("Waiting to load the track")
         )}
+        {trackInfo ? (
+          <SelectiveStationsMarkers
+            dataInfo={dataInfo}
+            key="SelectiveEnd"
+            dataStatus={dataStatus}
+            point={{
+              latitude: endPoint["lat"],
+              longitude: endPoint["lon"],
+            }}
+            order={getNbOfLegs()}
+            setStationsFunc={handleSetChosenStations}
+            chosenStations={chosenStations}
+            forceUpdate={forceUpdate}
+          />
+        ) : (
+          console.log("Waiting to load the track")
+        )}
+
+        {trackInfo
+          ? getChangingPoints(trackInfo["coordinates"]).map(
+              (singleChangingPoint, index) => (
+                <SelectiveStationsMarkers
+                  key={"SelectiveMid" + index.toString()}
+                  dataInfo={dataInfo}
+                  dataStatus={dataStatus}
+                  point={singleChangingPoint}
+                  order={index + 1}
+                  setStationsFunc={handleSetChosenStations}
+                  chosenStations={chosenStations}
+                  forceUpdate={forceUpdate}
+                />
+              )
+            )
+          : console.log("Waiting to load the track")}
       </MapView>
 
-      <View className="flex-row absolute h-auto w-full bg-green-100">
-        <View className="h-auto w-128 bg-red-400">
-          <Text>
-            {trackInfo
-              ? "Distance: " + trackInfo["length"] / 1000 + " km"
-              : "Loading the track..."}
-          </Text>
-          <Text>
-            {trackInfo
-              ? "Estimated time: " +
-                Math.floor(trackInfo["time"] / 60) +
-                " min " +
-                Math.round(
-                  (trackInfo["time"] / 60 -
-                    Math.floor(trackInfo["time"] / 60)) *
-                    60
-                ) +
-                " s"
-              : "Loading the track..."}
-          </Text>
-          {chosenStations ? (
-            chosenStations.map((station, index) => (
-              <Text>{chosenStations[index]}</Text>
-            ))
-          ) : (
-            <Text></Text>
-          )}
-        </View>
-        <TouchableOpacity
-          className="bg-blue-300 w-full h-full"
-          onPress={handleGoButton}
-        >
-          <Text>GO!</Text>
-        </TouchableOpacity>
-      </View>
-
-      {trackInfo ? (
-        <View className="flex-row absolute h-32 w-full bg-red-200 bottom-0">
-          <TouchableOpacity
-            className="h-32 w-1/3 bg-red-400"
-            onPress={() =>
-              handleToggleViewButton(
-                endPoint,
-                trackInfo["coordinates"],
-                countPoints
+      <View className=" absolute h-auto w-full bottom-0 items-end p-1">
+        <LocationButton mapRef={mapRef} />
+        <View className="flex-1 w-full items-center bg-white rounded-lg border-2 border-gray-400 opacity-80">
+          <View className="h-auto w-128  align-center items-center justify-center">
+            <Text className="text-base">
+              {trackInfo
+                ? "Initial distance: " + trackInfo["length"] / 1000 + " km"
+                : "Loading the track..."}
+            </Text>
+            <Text className="text-base">
+              {trackInfo
+                ? "Estimated time: " +
+                  Math.floor(trackInfo["time"] / 60) +
+                  " min " +
+                  Math.round(
+                    (trackInfo["time"] / 60 -
+                      Math.floor(trackInfo["time"] / 60)) *
+                      60
+                  ) +
+                  " s"
+                : "Loading the track..."}
+            </Text>
+            <Text className="text-base">Pick the bike changing stations:</Text>
+            <Text className="text-xs text-center text-slate-500">
+              {
+                "(Click red bubble -> press station circle\nand press button Pick this station)"
+              }
+            </Text>
+          </View>
+          <View className="flex-row p-2">
+            {chosenStations ? (
+              chosenStations.map((station, index) =>
+                index > 0 && index < chosenStations.length - 1 ? (
+                  // <Text key={index}>{chosenStations[index]}</Text>
+                  <TouchableOpacity
+                    key={"TO_choice_" + index}
+                    className={
+                      "h-16 w-12 flex-grow rounded-full " +
+                      (station === "Undefined" ? "bg-red-300" : "bg-green-400")
+                    }
+                    onPress={() =>
+                      handleChangeViewButtons(trackInfo["coordinates"], index)
+                    }
+                  ></TouchableOpacity>
+                ) : (
+                  <View key={"empty_view_choice_" + index}></View>
+                )
               )
-            }
-          >
-            <Text>Toggle View</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="h-32 w-1/3 bg-blue-200" />
-          <TouchableOpacity className="h-32 w-1/3 bg-green-200" />
+            ) : (
+              <Text></Text>
+            )}
+          </View>
+          <View className="p-2 flex-row">
+            <TouchableOpacity
+              className="bg-blue-500 h-16 w-64 items-center align-center justify-center rounded-full"
+              onPress={forceUpdate}
+            >
+              <Text className="text-white">Pick this station!</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className={
+                "h-16 w-24 items-center align-center justify-center rounded-full " +
+                (getAllStationsChosen() ? "bg-green-500" : "bg-slate-500")
+              }
+              onPress={handleGoButton}
+              disabled={!getAllStationsChosen()}
+            >
+              <Text>Go!</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      ) : (
-        <View></View>
-      )}
+      </View>
     </View>
   );
 };

@@ -1,15 +1,33 @@
-import { View, Text } from "react-native";
+import { View, Text, Linking, Alert } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import * as Sharing from "expo-sharing";
 
 import TrackPolyline from "../Components/TrackPolyline";
-
 import apiKeys from "../secretCodes.json";
+import LocationButton from "../Components/LocationButton";
 
 const FinalTracksView = ({ navigation, route }) => {
   const { chosenStations, dataInfo, dataStatus } = route.params;
 
   const [tracksInfo, setTracksInfo] = useState(null);
+
+  const mapRef = useRef(null);
+
+  const handleShareLocation = (coords) => {
+    const latitude = coords.split(":")[1]; // replace with your latitude
+    const longitude = coords.split(":")[3]; // replace with your longitude
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    Alert.alert("Share location", "Show in google maps?", [
+      {
+        text: "Go to Google maps",
+        onPress: () => Linking.openURL(url),
+      },
+      { text: "Cancel", onPress: () => console.log("OK Pressed") },
+    ]);
+    // Linking.openURL(url);
+  };
 
   const getTracks = () => {
     const trackAPIKey = apiKeys["trackAPIKey"];
@@ -46,18 +64,6 @@ const FinalTracksView = ({ navigation, route }) => {
         })
         .catch((error) => console.error(error));
     }
-
-    // console.log(tracksInfo);
-
-    // const trackUrl = `https://www.cyclestreets.net/api/journey.json?key=${trackAPIKey}&reporterrors=1&itinerarypoints=${itinerary}&plan=${trackPlan}`;
-    //0.11795,52.20530,City+Centre|0.13140,52.22105,Mulberry+Close|0.14732,52.19965,Thoday+Street
-
-    // fetch(trackUrl)
-    //   .then((response) => response.json())
-    //   .then((trackInfo) => {
-    //     setTrackInfo(trackInfo["marker"][0]["@attributes"]);
-    //   })
-    //   .catch((error) => console.error(error));
   };
 
   useEffect(() => {
@@ -73,16 +79,58 @@ const FinalTracksView = ({ navigation, route }) => {
   return (
     <View>
       <MapView
+        ref={mapRef}
         className="h-full w-full"
+        showsUserLocation={true}
         initialRegion={{
-          latitude: 48.88179064200294,
-          longitude: 2.4030599377642674,
-          latitudeDelta: 0.2,
-          longitudeDelta: 0.2,
+          latitude:
+            (parseFloat(chosenStations[0].split(":")[1]) +
+              parseFloat(
+                chosenStations[chosenStations.length - 1].split(":")[1]
+              )) /
+            2,
+          longitude:
+            (parseFloat(chosenStations[0].split(":")[3]) +
+              parseFloat(
+                chosenStations[chosenStations.length - 1].split(":")[3]
+              )) /
+            2,
+          latitudeDelta:
+            Math.abs(
+              parseFloat(chosenStations[0].split(":")[1]) -
+                parseFloat(
+                  chosenStations[chosenStations.length - 1].split(":")[1]
+                )
+            ) * 1.3,
+          longitudeDelta:
+            Math.abs(
+              parseFloat(chosenStations[0].split(":")[3]) -
+                parseFloat(
+                  chosenStations[chosenStations.length - 1].split(":")[3]
+                )
+            ) * 1.3,
         }}
       >
         {tracksInfo ? (
-          tracksInfo.map((track, index) => <TrackPolyline trackInfo={track} />)
+          tracksInfo.map((track, index) => (
+            <TrackPolyline key={"track" + String(index)} trackInfo={track} />
+          ))
+        ) : (
+          <View></View>
+        )}
+        {chosenStations ? (
+          chosenStations.map((stationCoords, index) => (
+            <Marker
+              tracksViewChanges={false}
+              opacity={0.5}
+              key={"Marker in the Final View" + index}
+              onPress={() => handleShareLocation(stationCoords)}
+              coordinate={{
+                latitude: parseFloat(stationCoords.split(":")[1]),
+                longitude: parseFloat(stationCoords.split(":")[3]),
+              }}
+            ></Marker>
+          ))
         ) : (
           <View></View>
         )}
@@ -92,6 +140,12 @@ const FinalTracksView = ({ navigation, route }) => {
       ) : (
         <View className="flex-row absolute h-8 w-full bg-red-500"></View>
       )}
+
+      <View className="absolute bottom-0 w-full p-3">
+        <View className="items-end">
+          <LocationButton mapRef={mapRef} />
+        </View>
+      </View>
     </View>
   );
 };
